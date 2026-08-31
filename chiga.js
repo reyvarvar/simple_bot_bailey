@@ -71,7 +71,7 @@ export default async function handleMessage(sock, m) {
       if (!dbUser[pengirim]) dbUser[pengirim] = {};
       dbUser[pengirim].aktif = true;
       tulisDB('database_user.json', dbUser);
-      return await kirimTeks(`Halo Bos! Asisten FATISDA *AKTIF*.\n\nKetik *0* untuk menu utama.\nKetik *./stop* untuk mematikan bot.`);
+      return await kirimTeks(`👋 Halo Bos! Asisten FATISDA *AKTIF*.\n\nKetik *0* untuk menu utama.\nKetik *./stop* untuk mematikan bot.`);
     }
 
     if (inputLower === "./stop") {
@@ -79,7 +79,7 @@ export default async function handleMessage(sock, m) {
         dbUser[pengirim].aktif = false;
         tulisDB('database_user.json', dbUser);
       }
-      return await kirimTeks(`Bot *DINONAKTIFKAN*. Ketik ./halo untuk menyalakan lagi.`);
+      return await kirimTeks(`🛑 Bot *DINONAKTIFKAN*. Ketik ./halo untuk menyalakan lagi.`);
     }
 
     if (!dbUser[pengirim] || !dbUser[pengirim].aktif) return;
@@ -245,7 +245,7 @@ export default async function handleMessage(sock, m) {
       dataTugas.forEach((t, i) => {
         // Tanda coret kalau udah selesai
         let namaTugas = t.selesai ? `~${t.tugas}~ (✅ Selesai)` : t.tugas;
-        balasan += `*${i + 1}. ${namaTugas}*\n   Deadline: ${t.deadline}\n\n`;
+        balasan += `*${i + 1}. ${namaTugas}*\n   ⏰ Deadline: ${t.deadline}\n\n`;
       });
       balasan += `_Semangat ngerjainnya bos!_`;
       

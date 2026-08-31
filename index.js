@@ -34,7 +34,6 @@ async function connectToWhatsApp() {
         const { connection, lastDisconnect, qr } = update;
         
         if (qr) {
-            console.log('⏳ Sedang memuat QR Code...');
             qrcode.generate(qr, { small: true }); 
         }
 
