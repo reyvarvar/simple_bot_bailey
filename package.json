@@ -1,0 +1,19 @@
+{
+  "name": "bot-wha",
+  "version": "1.0.0",
+  "description": "Bot WA FATISDA",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@whiskeysockets/baileys": "latest",
+    "pino": "latest",
+    "qrcode-terminal": "^0.12.0"
+  }
+}
