@@ -92,15 +92,14 @@ function mulaiMesinWaktu(sock) {
                 tulisDB('database_user.json', dbUser);
             }
 
-            // 2. SPAM ANTI-DOOM SCROLLING (19:00 - 21:59 WIB, TIAP 5 MENIT)
-            if (jam >= 19 && jam <= 21) {
-                // Cek kalau lu belum ngetik password aman
+           const isSesi1 = (jam >= 15 && jam < 18);
+            const isSesi2 = (jam >= 19 && jam <= 23);
+
+            if (isSesi1 || isSesi2) {
                 if (user.doomAmanTgl !== tglSekarang) {
-                    // Cek apakah sudah 5 menit (300.000 ms) sejak spam terakhir
                     if (!user.lastSpamTime || (msSekarang - user.lastSpamTime >= 300000)) {
-                        
                         const variasiPesan = [
-                            "🚨 WOI! UDAH MALEM STOP DOOM SCROLLING!",
+                            "🚨 WOI! STOP DOOM SCROLLING!",
                             "⚠️ HP-nya ditaruh bos, lanjutin tugas sana!",
                             "💀 Masih aja scroll TikTok/IG mulu, tutup woi!",
                             "🛑 Berhenti main HP sekarang. Balas *aku tak doom scrolling* kalau udah beneran sadar."
@@ -108,14 +107,13 @@ function mulaiMesinWaktu(sock) {
                         const pesanRandom = variasiPesan[Math.floor(Math.random() * variasiPesan.length)];
                         
                         sock.sendMessage(nomorJid, { text: pesanRandom });
-                        
-                        user.lastSpamTime = msSekarang; // Reset timer spam 5 menit
+                        user.lastSpamTime = msSekarang;
                         tulisDB('database_user.json', dbUser);
                     }
                 }
             }
         }
-    }, 60000); // Looping dicek setiap 1 Menit (60000 ms)
+    }, 60000);
 }
 
 // === SISTEM ANTI-CRASH ===
