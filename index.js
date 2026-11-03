@@ -4,9 +4,14 @@ import pino from 'pino';
 import qrcode from 'qrcode-terminal';
 import fs from 'fs';
 import path from 'path';
-import handleMessage from './chiga.js';
+import { ImapFlow } from 'imapflow';
+import { simpleParser } from 'mailparser';
+import handleMessage, { prosesTransaksiKeuangan } from './chiga.js';
 
-// === Helper DB ===
+// === KONFIGURASI EMAIL TUMBAL ===
+const EMAIL_TUMBAL = 'emailtumbalkamu@gmail.com'; // Ganti dengan alamat Gmail tumbal kamu
+const APP_PASSWORD = 'xxxx xxxx xxxx xxxx';      // Ganti dengan 16 digit App Password Google
+
 function bacaDB(namaFile) {
     try {
         const p = path.join(process.cwd(), namaFile);
@@ -47,7 +52,8 @@ async function connectToWhatsApp() {
             }
         } else if (connection === 'open') {
             console.log('✅ Bot berhasil terhubung dan siap digunakan!');
-            mulaiMesinWaktu(sock); // Nyalakan Alarm dan Spam
+            mulaiMesinWaktu(sock);
+            mulaiPantauEmail(sock);
         }
     });
 
@@ -60,16 +66,94 @@ async function connectToWhatsApp() {
     });
 }
 
-// === MESIN ALARM & SPAM ANTI-DOOM SCROLLING ===
+// === MESIN PEMBACA EMAIL (LIVIN' MANDIRI & GOOGLE CLASSROOM) ===
+function mulaiPantauEmail(sock) {
+    setInterval(async () => {
+        if (EMAIL_TUMBAL.includes('emailtumbalkamu')) return;
+
+        let dbUser = bacaDB('database_user.json');
+        if (!dbUser) return;
+
+        const targetJid = Object.keys(dbUser).find(jid => dbUser[jid].aktif);
+        if (!targetJid) return;
+
+        const client = new ImapFlow({
+            host: 'imap.gmail.com',
+            port: 993,
+            secure: true,
+            auth: { user: EMAIL_TUMBAL, pass: APP_PASSWORD },
+            logger: false
+        });
+
+        try {
+            await client.connect();
+            let lock = await client.getMailboxLock('INBOX');
+            try {
+                const unseenUids = await client.search({ seen: false });
+                for (let uid of unseenUids) {
+                    let message = await client.fetchOne(uid, { source: true });
+                    let parsed = await simpleParser(message.source);
+                    
+                    let subjekEmail = parsed.subject || "";
+                    let teksEmail = parsed.text || (parsed.html ? parsed.html.replace(/<[^>]+>/g, '\n') : "");
+
+                    // 1. DETEKSI STRUK QRIS LIVIN' MANDIRI
+                    if (teksEmail.includes("Pembayaran Berhasil") || teksEmail.includes("Nominal Transaksi")) {
+                        let matchPenerima = teksEmail.match(/Penerima\s*\n+\s*([^\n\r]+)/i);
+                        let namaPenerima = matchPenerima ? matchPenerima[1].trim() : "Merchant QRIS";
+
+                        let matchNominal = teksEmail.match(/Nominal Transaksi[\s\S]*?Rp\s*([\d\.]+)/i);
+                        if (matchNominal) {
+                            let angkaBersih = parseInt(matchNominal[1].replace(/\./g, ''));
+                            if (!isNaN(angkaBersih) && angkaBersih > 0) {
+                                await prosesTransaksiKeuangan(
+                                    sock, 
+                                    targetJid, 
+                                    angkaBersih, 
+                                    `QRIS: ${namaPenerima}`, 
+                                    "Auto-Email Livin'"
+                                );
+                            }
+                        }
+                    }
+
+                    // 2. DETEKSI TUGAS GOOGLE CLASSROOM
+                    if (subjekEmail.includes("Tugas baru:") || subjekEmail.includes("New assignment:")) {
+                        let namaTugas = subjekEmail.replace(/.*(Tugas baru:|New assignment:)\s*/i, "").trim();
+                        let matchTenggat = teksEmail.match(/(?:Tenggat|Due|Tenggat waktu)[:\s]+([^\n\r]+)/i);
+                        let waktuDeadline = matchTenggat ? matchTenggat[1].trim() : "Cek Classroom";
+
+                        let dataTugas = bacaDB('tugas.json');
+                        if (!Array.isArray(dataTugas)) dataTugas = [];
+                        
+                        dataTugas.push({ tugas: `[Classroom] ${namaTugas}`, deadline: waktuDeadline, selesai: false });
+                        tulisDB('tugas.json', dataTugas);
+
+                        await sock.sendMessage(targetJid, { 
+                            text: `📚 *TUGAS CLASSROOM BARU!*\n\n📝 Tugas: *${namaTugas}*\n⏰ Deadline: ${waktuDeadline}\n\n_Otomatis masuk ke daftar tugas kamu._` 
+                        });
+                    }
+
+                    await client.messageFlagsAdd(uid, ['\\Seen']);
+                }
+            } finally {
+                lock.release();
+            }
+            await client.logout();
+        } catch (err) {
+            // Abaikan error jaringan sesaat
+        }
+    }, 60000);
+}
+
+// === MESIN PENGINGAT TUGAS HARIAN (JAM 15:00 WIB) ===
 function mulaiMesinWaktu(sock) {
     setInterval(() => {
-        // Tarik zona waktu Jakarta agar stabil
         const sekarang = new Date();
         const waktuWIB = new Date(sekarang.toLocaleString("en-US", {timeZone: "Asia/Jakarta"}));
         
         const jam = waktuWIB.getHours();
-        const tglSekarang = waktuWIB.toLocaleDateString('en-CA'); // Format: YYYY-MM-DD
-        const msSekarang = waktuWIB.getTime();
+        const tglSekarang = waktuWIB.toLocaleDateString('en-CA');
 
         let dbUser = bacaDB('database_user.json');
         if (!dbUser) return;
@@ -78,45 +162,24 @@ function mulaiMesinWaktu(sock) {
             let user = dbUser[nomorJid];
             if (!user.aktif) continue;
 
-            // 1. PENGINGAT TUGAS HARIAN (JAM 15:00 WIB)
             if (jam === 15 && user.tglTugasRemind !== tglSekarang) {
                 let dataTugas = bacaDB('tugas.json');
-                if (dataTugas && Array.isArray(dataTugas) && dataTugas.length > 0) {
-                    let teks = `🚨 *PENGINGAT TUGAS HARIAN* 🚨\n\n`;
-                    dataTugas.forEach((t, i) => { teks += `*${i+1}. ${t.tugas}*\n⏰ DL: ${t.deadline}\n\n`; });
-                    teks += `Ayo dikerjain bos!`;
-                    
-                    sock.sendMessage(nomorJid, { text: teks });
-                }
-                user.tglTugasRemind = tglSekarang; // Tandai sudah dikirim hari ini
-                tulisDB('database_user.json', dbUser);
-            }
-
-           const isSesi1 = (jam >= 15 && jam < 18);
-            const isSesi2 = (jam >= 19 && jam <= 23);
-
-            if (isSesi1 || isSesi2) {
-                if (user.doomAmanTgl !== tglSekarang) {
-                    if (!user.lastSpamTime || (msSekarang - user.lastSpamTime >= 300000)) {
-                        const variasiPesan = [
-                            "🚨 WOI! STOP DOOM SCROLLING!",
-                            "⚠️ HP-nya ditaruh bos, lanjutin tugas sana!",
-                            "💀 Masih aja scroll TikTok/IG mulu, tutup woi!",
-                            "🛑 Berhenti main HP sekarang. Balas *aku tak doom scrolling* kalau udah beneran sadar."
-                        ];
-                        const pesanRandom = variasiPesan[Math.floor(Math.random() * variasiPesan.length)];
-                        
-                        sock.sendMessage(nomorJid, { text: pesanRandom });
-                        user.lastSpamTime = msSekarang;
-                        tulisDB('database_user.json', dbUser);
+                if (dataTugas && Array.isArray(dataTugas)) {
+                    let tugasBelum = dataTugas.filter(t => !t.selesai);
+                    if (tugasBelum.length > 0) {
+                        let teks = `🚨 *PENGINGAT TUGAS HARIAN* 🚨\n\n`;
+                        tugasBelum.forEach((t, i) => { teks += `*${i+1}. ${t.tugas}*\n⏰ DL: ${t.deadline}\n\n`; });
+                        teks += `Ayo dikerjain bos!`;
+                        sock.sendMessage(nomorJid, { text: teks });
                     }
                 }
+                user.tglTugasRemind = tglSekarang;
+                tulisDB('database_user.json', dbUser);
             }
         }
     }, 60000);
 }
 
-// === SISTEM ANTI-CRASH ===
 process.on('uncaughtException', (err) => console.error(err));
 process.on('unhandledRejection', (err) => console.error(err));
 

@@ -12,7 +12,10 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@hapi/boom": "latest",
     "@whiskeysockets/baileys": "latest",
+    "imapflow": "latest",
+    "mailparser": "latest",
     "pino": "latest",
     "qrcode-terminal": "^0.12.0"
   }
