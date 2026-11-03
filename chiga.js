@@ -42,8 +42,9 @@ export function kelolaKeuanganHarian(pengirim) {
     let dbKeuangan = bacaDB('keuangan.json');
     const tglSekarang = getTanggalWIB();
     const waktuWIB = getWaktuWIBObj();
-    const JATAH_BULANAN = 1500000;
-    const LIMIT_HARIAN = 50000;
+    //atur sendiri
+    const JATAH_BULANAN = 0;
+    const LIMIT_HARIAN = 0;
 
     const tglHariIni = waktuWIB.getDate();
     const sisaHariDefault = Math.max(1, 30 - tglHariIni + 1);
