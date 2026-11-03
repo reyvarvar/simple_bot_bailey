@@ -162,7 +162,7 @@ function mulaiMesinWaktu(sock) {
             let user = dbUser[nomorJid];
             if (!user.aktif) continue;
 
-            if (jam === 15 && user.tglTugasRemind !== tglSekarang) {
+            if (jam === 19 && user.tglTugasRemind !== tglSekarang) {
                 let dataTugas = bacaDB('tugas.json');
                 if (dataTugas && Array.isArray(dataTugas)) {
                     let tugasBelum = dataTugas.filter(t => !t.selesai);
